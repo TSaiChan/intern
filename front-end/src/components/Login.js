@@ -7,6 +7,8 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
   const navigate = useNavigate();
 
   const isValidEmail = (email) => {
@@ -15,8 +17,10 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
 
     if (!isValidEmail(email)) {
+      setIsLoading(false);
       Swal.fire({
         icon: 'error',
         title: 'Invalid Email',
@@ -82,6 +86,62 @@ function Login() {
         text: err.message,
         confirmButtonColor: '#3085d6',
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Email Required',
+        text: 'Please enter your email address first.',
+        confirmButtonColor: '#3085d6',
+      });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid Email',
+        text: 'Please enter a valid email address.',
+        confirmButtonColor: '#3085d6',
+      });
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:3000/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Reset Link Sent',
+          text: 'If your email exists in our system, you will receive a password reset link.',
+          confirmButtonColor: '#3085d6',
+        });
+      } else {
+        throw new Error(data.message || 'Failed to send reset email');
+      }
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Request Failed',
+        text: err.message,
+        confirmButtonColor: '#3085d6',
+      });
+    } finally {
+      setForgotPasswordLoading(false);
     }
   };
 
@@ -100,6 +160,7 @@ function Login() {
               required
               placeholder="you@example.com"
               className="input-group input"
+              disabled={isLoading}
             />
           </div>
           <div className="relative input-group">
@@ -112,6 +173,7 @@ function Login() {
               required
               placeholder="••••••••"
               className="input-group input"
+              disabled={isLoading}
             />
             <span
               className="absolute top-11 right-4 text-gray-500 cursor-pointer"
@@ -120,10 +182,29 @@ function Login() {
               <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
             </span>
           </div>
-          <button type="submit" className="login-button">Log In</button>
+
+          {/* Forgot Password Link */}
+          <div className="text-right">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={forgotPasswordLoading}
+              className="text-sm text-blue-600 hover:text-blue-800 hover:underline focus:outline-none disabled:opacity-50"
+            >
+              {forgotPasswordLoading ? 'Sending...' : 'Forgot Password?'}
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            className="login-button disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isLoading}
+          >
+            {isLoading ? 'Logging in...' : 'Log In'}
+          </button>
         </form>
         <p className="toggle-container">
-          Don’t have an account?{' '}
+          Don't have an account?{' '}
           <Link to="/register" className="toggle-text">Register here</Link>
         </p>
       </div>

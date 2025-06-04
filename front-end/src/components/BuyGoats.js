@@ -322,8 +322,8 @@ function BuyGoats() {
                                             onClick={() => handlePurchase(goat)}
                                             disabled={purchasingIds.has(goat.id)}
                                             className={`flex-1 py-2 px-4 text-white rounded-md ${purchasingIds.has(goat.id)
-                                                    ? 'bg-gray-400 cursor-not-allowed'
-                                                    : 'bg-green-600 hover:bg-green-700'
+                                                ? 'bg-gray-400 cursor-not-allowed'
+                                                : 'bg-green-600 hover:bg-green-700'
                                                 }`}
                                         >
                                             {purchasingIds.has(goat.id) ? 'Purchasing...' : 'Purchase'}

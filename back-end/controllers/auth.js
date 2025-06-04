@@ -8,9 +8,11 @@ const { v4: uuidv4 } = require('uuid');
 let otpStore = {};
 let otpRequestTracker = {};
 let activeSessions = {};
+let passwordResetTokens = {}; // Store for password reset tokens
 
 const OTP_REQUEST_LIMIT = 3;
 const OTP_WINDOW_MS = 60 * 1000;
+const RESET_TOKEN_EXPIRY = 15 * 60 * 1000; // 15 minutes
 
 // Ensure JWT_SECRET is set
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -18,6 +20,7 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is not set in environment variables');
 }
 
+// Fix: Change createTransporter to createTransport
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -195,6 +198,163 @@ const login = async (req, res) => {
   });
 };
 
+// NEW: Forgot Password Request
+const forgotPasswordRequest = (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Email is required' });
+  }
+
+  // Check if user exists and is verified
+  db.query('SELECT * FROM users WHERE email = ? AND verified = 1', [email], (err, results) => {
+    if (err) {
+      console.error('DB error in forgotPasswordRequest:', err);
+      return res.status(500).json({ message: 'Database error', error: err.message });
+    }
+
+    if (results.length === 0) {
+      // For security, don't reveal if email exists or not
+      return res.status(200).json({
+        message: 'If the email exists in our system, you will receive a password reset link.'
+      });
+    }
+
+    const user = results[0];
+
+    // Generate secure reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenExpiry = Date.now() + RESET_TOKEN_EXPIRY;
+
+    // Store reset token
+    passwordResetTokens[email] = {
+      token: resetToken,
+      userId: user.id,
+      expiresAt: resetTokenExpiry
+    };
+
+    // Clean up expired tokens after 20 minutes
+    setTimeout(() => {
+      delete passwordResetTokens[email];
+    }, 20 * 60 * 1000);
+
+    // Create reset link
+    const resetLink = `http://localhost:3001/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
+
+    const mailOptions = {
+      from: `"Digi Goat Team" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Digi Goat: Password Reset Request',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1d4ed8;">Password Reset Request</h2>
+          <p>Dear ${user.username},</p>
+          <p>We received a request to reset your password for your Digi Goat account.</p>
+          <p>Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" 
+               style="background-color: #1d4ed8; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p>Or copy and paste this link in your browser:</p>
+          <p style="word-break: break-all; color: #1d4ed8;">${resetLink}</p>
+          <p><strong>This link will expire in 15 minutes.</strong></p>
+          <p>If you did not request this password reset, please ignore this email and your password will remain unchanged.</p>
+          <p>Best regards,<br>The Digi Goat Team</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+          <p style="font-size: 12px; color: #6b7280;">
+            For security reasons, this email was sent to verify your identity. If you have any questions, please contact us at support@digigoat.com.
+          </p>
+        </div>
+      `
+    };
+
+    transporter.sendMail(mailOptions, (error) => {
+      if (error) {
+        console.error('Error sending password reset email:', error);
+        return res.status(500).json({ message: 'Failed to send password reset email' });
+      }
+
+      res.status(200).json({
+        message: 'If the email exists in our system, you will receive a password reset link.'
+      });
+    });
+  });
+};
+
+// NEW: Verify Reset Token
+const verifyResetToken = (req, res) => {
+  const { token, email } = req.query;
+
+  if (!token || !email) {
+    return res.status(400).json({ message: 'Token and email are required' });
+  }
+
+  const resetData = passwordResetTokens[email];
+
+  if (!resetData || resetData.token !== token || Date.now() > resetData.expiresAt) {
+    return res.status(400).json({ message: 'Invalid or expired reset token' });
+  }
+
+  res.status(200).json({ message: 'Token is valid', email });
+};
+
+// NEW: Reset Password
+const resetPassword = (req, res) => {
+  const { token, email, newPassword, confirmPassword } = req.body;
+
+  if (!token || !email || !newPassword || !confirmPassword) {
+    return res.status(400).json({ message: 'All fields are required' });
+  }
+
+  if (newPassword !== confirmPassword) {
+    return res.status(400).json({ message: 'Passwords do not match' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  }
+
+  const resetData = passwordResetTokens[email];
+
+  if (!resetData || resetData.token !== token || Date.now() > resetData.expiresAt) {
+    return res.status(400).json({ message: 'Invalid or expired reset token' });
+  }
+
+  // Hash new password
+  bcrypt.hash(newPassword, 10, (hashErr, hashedPassword) => {
+    if (hashErr) {
+      console.error('Error hashing password:', hashErr);
+      return res.status(500).json({ message: 'Error processing password' });
+    }
+
+    // Update password in database
+    db.query(
+      'UPDATE users SET password = ? WHERE id = ? AND email = ?',
+      [hashedPassword, resetData.userId, email],
+      (err, result) => {
+        if (err) {
+          console.error('DB error in resetPassword:', err);
+          return res.status(500).json({ message: 'Database error', error: err.message });
+        }
+
+        if (result.affectedRows === 0) {
+          return res.status(400).json({ message: 'User not found' });
+        }
+
+        // Clean up the reset token
+        delete passwordResetTokens[email];
+
+        // Invalidate all active sessions for this user
+        delete activeSessions[resetData.userId];
+
+        res.status(200).json({ message: 'Password reset successfully' });
+      }
+    );
+  });
+};
+
 const logout = (req, res) => {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) return res.status(401).json({ message: 'No token provided' });
@@ -273,4 +433,7 @@ module.exports = {
   validateSession,
   isAdmin,
   isCustomer,
+  forgotPasswordRequest,
+  verifyResetToken,
+  resetPassword,
 };

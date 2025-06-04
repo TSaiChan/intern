@@ -11,11 +11,10 @@ function MyGoats() {
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
-    // Filter states
-    const [filterBreed, setFilterBreed] = useState('');
-    const [filterMinPrice, setFilterMinPrice] = useState('');
-    const [filterMaxPrice, setFilterMaxPrice] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all');
+    // Search and pagination states
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 6; // Items per page
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -86,43 +85,26 @@ function MyGoats() {
             });
     }, [navigate]);
 
+    // Search functionality
     useEffect(() => {
-        let filtered = [...goats];
-
-        if (filterBreed) {
-            filtered = filtered.filter((goat) =>
-                goat.breed?.toLowerCase().includes(filterBreed.toLowerCase())
-            );
-        }
-
-        if (filterMinPrice) {
-            filtered = filtered.filter(
-                (goat) => parseFloat(goat.minimum_price) >= parseFloat(filterMinPrice)
-            );
-        }
-        if (filterMaxPrice) {
-            filtered = filtered.filter(
-                (goat) => parseFloat(goat.maximum_price) <= parseFloat(filterMaxPrice)
-            );
-        }
-
-        if (filterStatus !== 'all') {
-            const isActive = filterStatus === 'active';
-            filtered = filtered.filter((goat) => {
-                if (typeof goat.is_active === 'boolean') {
-                    return goat.is_active === isActive;
-                } else if (typeof goat.is_active === 'string') {
-                    return goat.is_active.toLowerCase() === (isActive ? 'active' : 'inactive');
-                } else if (typeof goat.is_active === 'number') {
-                    return goat.is_active === (isActive ? 1 : 0);
-                }
-                return false;
-            });
-        }
-
-        console.log('Filtered goats:', filtered);
+        const filtered = goats.filter((goat) => {
+            const goatName = `Goat #${goat.goat_number} - ${goat.breed}`.toLowerCase();
+            return goatName.includes(searchTerm.toLowerCase());
+        });
         setFilteredGoats(filtered);
-    }, [goats, filterBreed, filterMinPrice, filterMaxPrice, filterStatus]);
+        setCurrentPage(1); // Reset to first page when searching
+    }, [goats, searchTerm]);
+
+    // Pagination calculations
+    const totalPages = Math.ceil(filteredGoats.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentGoats = filteredGoats.slice(startIndex, endIndex);
+
+    const handleSearch = () => {
+        // Search is already handled by useEffect
+        console.log('Searching for:', searchTerm);
+    };
 
     const handleEdit = (goat) => {
         navigate('/sell-goat', { state: { goat } });
@@ -244,16 +226,12 @@ function MyGoats() {
         });
     };
 
-    const handleResetFilters = () => {
-        setFilterBreed('');
-        setFilterMinPrice('');
-        setFilterMaxPrice('');
-        setFilterStatus('all');
-        setFilteredGoats(goats);
-    };
-
     const handleBack = () => {
         navigate('/customer-dashboard');
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
     };
 
     if (loading) return <div className="text-center p-10 text-gray-600">Loading...</div>;
@@ -267,92 +245,42 @@ function MyGoats() {
             }}
         >
             <div className="max-w-6xl mx-auto bg-white bg-opacity-95 rounded-xl shadow-lg p-6 backdrop-blur-md">
-                <div className="flex justify-start mb-4">
+                <div className="flex justify-between items-center mb-6">
                     <button
                         onClick={handleBack}
                         className="py-2 px-4 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition"
                     >
                         Back
                     </button>
+
+                    {/* Search Section */}
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search by goat name..."
+                            className="px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                        />
+                        <button
+                            onClick={handleSearch}
+                            className="py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center gap-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            Search
+                        </button>
+                    </div>
                 </div>
+
                 <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center drop-shadow-md">
                     My Goats
                 </h2>
 
-                {/* Filtering Section */}
-                <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-inner">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4 drop-shadow-sm">
-                        Filter Goats
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div>
-                            <label htmlFor="filterBreed" className="block text-sm font-medium text-gray-800">
-                                Breed
-                            </label>
-                            <input
-                                id="filterBreed"
-                                type="text"
-                                value={filterBreed}
-                                onChange={(e) => setFilterBreed(e.target.value)}
-                                placeholder="Enter breed"
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="filterMinPrice" className="block text-sm font-medium text-gray-800">
-                                Min Price
-                            </label>
-                            <input
-                                id="filterMinPrice"
-                                type="number"
-                                step="0.01"
-                                value={filterMinPrice}
-                                onChange={(e) => setFilterMinPrice(e.target.value)}
-                                placeholder="Min price"
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="filterMaxPrice" className="block text-sm font-medium text-gray-800">
-                                Max Price
-                            </label>
-                            <input
-                                id="filterMaxPrice"
-                                type="number"
-                                step="0.01"
-                                value={filterMaxPrice}
-                                onChange={(e) => setFilterMaxPrice(e.target.value)}
-                                placeholder="Max price"
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                            />
-                        </div>
-                        <div>
-                            <label htmlFor="filterStatus" className="block text-sm font-medium text-gray-800">
-                                Status
-                            </label>
-                            <select
-                                id="filterStatus"
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
-                            >
-                                <option value="all">All</option>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button
-                        onClick={handleResetFilters}
-                        className="mt-4 py-2 px-4 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition"
-                    >
-                        Reset Filters
-                    </button>
-                </div>
-
                 {filteredGoats.length === 0 ? (
                     <div className="text-center text-gray-800">
-                        <p>No goats match your filters.</p>
+                        <p>No goats found.</p>
                         <button
                             onClick={() => navigate('/sell-goat')}
                             className="mt-4 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
@@ -361,125 +289,188 @@ function MyGoats() {
                         </button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredGoats.map((goat) => (
-                            <div
-                                key={goat.id}
-                                className="bg-white rounded-xl shadow-md overflow-visible hover:shadow-lg transition-shadow duration-300 flex flex-col min-w-[280px]"
-                            >
-                                <div className="relative w-full pt-[75%]">
-                                    {goat.image_url ? (
-                                        <img
-                                            src={`http://localhost:3000${goat.image_url}?t=${new Date().getTime()}`}
-                                            alt={`Goat #${goat.goat_number || 'N/A'} - ${goat.breed || 'N/A'}`}
-                                            className="absolute top-0 left-0 w-full h-full object-contain p-4 bg-gray-100"
-                                            onError={(e) => {
-                                                console.error(`Failed to load image for goat ${goat.goat_number}: http://localhost:3000${goat.image_url}`);
-                                                e.target.src = 'https://via.placeholder.com/300x225?text=Goat+Image+Not+Found';
-                                            }}
-                                            onLoad={() => console.log(`Successfully loaded image for goat ${goat.goat_number}: http://localhost:3000${goat.image_url}`)}
-                                        />
-                                    ) : (
-                                        <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-200 text-gray-600">
-                                            No Image Available
-                                        </div>
-                                    )}
-                                </div>
+                    <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                            {currentGoats.map((goat) => (
                                 <div
-                                    className="p-4 flex-1"
-                                    style={{ minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                                    key={goat.id}
+                                    className="bg-white rounded-xl shadow-md overflow-visible hover:shadow-lg transition-shadow duration-300 flex flex-col min-w-[280px]"
                                 >
-                                    <div>
-                                        <h3
-                                            style={{
-                                                color: 'black',
-                                                fontSize: '16px',
-                                                fontWeight: 'bold',
-                                                visibility: 'visible',
-                                                display: 'block',
-                                                width: '100%',
-                                                minHeight: '30px',
-                                                lineHeight: '1.2',
-                                                marginBottom: '12px',
-                                                overflowWrap: 'break-word',
-                                                whiteSpace: 'normal',
-                                                position: 'relative',
-                                                zIndex: 1,
-                                                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                                                border: '1px solid black',
-                                                padding: '4px',
-                                            }}
-                                        >
-                                            {console.log(`Rendering goat: Number = ${goat.goat_number}, Breed = ${goat.breed}`)}
-                                            {goat.goat_number && goat.breed
-                                                ? `Goat #${goat.goat_number} - ${goat.breed}`
-                                                : 'Goat Name Unavailable'}
-                                        </h3>
-                                        <p
-                                            style={{
-                                                color: '#374151',
-                                                fontSize: '14px',
-                                                visibility: 'visible',
-                                                display: 'block',
-                                                width: '100%',
-                                                marginBottom: '12px',
-                                                overflowWrap: 'break-word',
-                                                whiteSpace: 'normal',
-                                            }}
-                                        >
-                                            <strong>DOB:</strong> {goat.dob ? new Date(goat.dob).toLocaleDateString() : 'N/A'}
-                                        </p>
-                                        <p
-                                            style={{
-                                                color: '#374151',
-                                                fontSize: '14px',
-                                                visibility: 'visible',
-                                                display: 'block',
-                                                width: '100%',
-                                                marginBottom: '12px',
-                                                overflowWrap: 'break-word',
-                                                whiteSpace: 'normal',
-                                            }}
-                                        >
-                                            <strong>Status:</strong>{' '}
-                                            <span className={goat.is_active ? 'text-green-600' : 'text-red-600'}>
-                                                {goat.is_active ? 'Active' : 'Inactive'}
-                                            </span>
-                                        </p>
+                                    <div className="relative w-full pt-[75%]">
+                                        {goat.image_url ? (
+                                            <img
+                                                src={`http://localhost:3000${goat.image_url}?t=${new Date().getTime()}`}
+                                                alt={`Goat #${goat.goat_number || 'N/A'} - ${goat.breed || 'N/A'}`}
+                                                className="absolute top-0 left-0 w-full h-full object-contain p-4 bg-gray-100"
+                                                onError={(e) => {
+                                                    console.error(`Failed to load image for goat ${goat.goat_number}: http://localhost:3000${goat.image_url}`);
+                                                    e.target.src = 'https://via.placeholder.com/300x225?text=Goat+Image+Not+Found';
+                                                }}
+                                                onLoad={() => console.log(`Successfully loaded image for goat ${goat.goat_number}: http://localhost:3000${goat.image_url}`)}
+                                            />
+                                        ) : (
+                                            <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-gray-200 text-gray-600">
+                                                No Image Available
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            onClick={() => handleViewDetails(goat)}
-                                            className="flex-1 py-2 px-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
-                                        >
-                                            View Details
-                                        </button>
-                                        <button
-                                            onClick={() => handleEdit(goat)}
-                                            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-                                        >
-                                            Edit Listing
-                                        </button>
-                                        <button
-                                            onClick={() => handleToggleStatus(goat.id, goat.is_active)}
-                                            className={`flex-1 py-2 px-4 text-white rounded-md ${goat.is_active
+                                    <div
+                                        className="p-4 flex-1"
+                                        style={{ minHeight: '180px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}
+                                    >
+                                        <div>
+                                            <h3
+                                                style={{
+                                                    color: 'black',
+                                                    fontSize: '16px',
+                                                    fontWeight: 'bold',
+                                                    visibility: 'visible',
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    minHeight: '30px',
+                                                    lineHeight: '1.2',
+                                                    marginBottom: '12px',
+                                                    overflowWrap: 'break-word',
+                                                    whiteSpace: 'normal',
+                                                    position: 'relative',
+                                                    zIndex: 1,
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                                                    border: '1px solid black',
+                                                    padding: '4px',
+                                                }}
+                                            >
+                                                {console.log(`Rendering goat: Number = ${goat.goat_number}, Breed = ${goat.breed}`)}
+                                                {goat.goat_number && goat.breed
+                                                    ? `Goat #${goat.goat_number} - ${goat.breed}`
+                                                    : 'Goat Name Unavailable'}
+                                            </h3>
+                                            <p
+                                                style={{
+                                                    color: '#374151',
+                                                    fontSize: '14px',
+                                                    visibility: 'visible',
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    marginBottom: '12px',
+                                                    overflowWrap: 'break-word',
+                                                    whiteSpace: 'normal',
+                                                }}
+                                            >
+                                                <strong>DOB:</strong> {goat.dob ? new Date(goat.dob).toLocaleDateString() : 'N/A'}
+                                            </p>
+                                            <p
+                                                style={{
+                                                    color: '#374151',
+                                                    fontSize: '14px',
+                                                    visibility: 'visible',
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    marginBottom: '12px',
+                                                    overflowWrap: 'break-word',
+                                                    whiteSpace: 'normal',
+                                                }}
+                                            >
+                                                <strong>Status:</strong>{' '}
+                                                <span className={goat.is_active ? 'text-green-600' : 'text-red-600'}>
+                                                    {goat.is_active ? 'Active' : 'Inactive'}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={() => handleViewDetails(goat)}
+                                                className="flex-1 py-2 px-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center justify-center gap-1"
+                                                title="View Details"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                                </svg>
+                                                View
+                                            </button>
+                                            <button
+                                                onClick={() => handleEdit(goat)}
+                                                className="flex-1 py-2 px-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center gap-1"
+                                                title="Edit Listing"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleToggleStatus(goat.id, goat.is_active)}
+                                                className={`flex-1 py-2 px-3 text-white rounded-md ${goat.is_active
                                                     ? 'bg-orange-600 hover:bg-orange-700'
                                                     : 'bg-green-600 hover:bg-green-700'
-                                                } transition`}
-                                        >
-                                            {goat.is_active ? 'Deactivate' : 'Activate'}
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(goat.id)}
-                                            className="flex-1 py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700 transition"
-                                        >
-                                            Delete
-                                        </button>
+                                                    } transition flex items-center justify-center gap-1`}
+                                                title={goat.is_active ? 'Deactivate' : 'Activate'}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={goat.is_active ? "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" : "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"} />
+                                                </svg>
+                                                {goat.is_active ? 'Deactivate' : 'Activate'}
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(goat.id)}
+                                                className="flex-1 py-2 px-3 bg-red-600 text-white rounded-md hover:bg-red-700 transition flex items-center justify-center gap-1"
+                                                title="Delete"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-6">
+                                <button
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className={`py-2 px-4 rounded-md transition ${currentPage === 1
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                        }`}
+                                >
+                                    Previous
+                                </button>
+
+                                {[...Array(totalPages)].map((_, index) => (
+                                    <button
+                                        key={index + 1}
+                                        onClick={() => handlePageChange(index + 1)}
+                                        className={`py-2 px-4 rounded-md transition ${currentPage === index + 1
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            }`}
+                                    >
+                                        {index + 1}
+                                    </button>
+                                ))}
+
+                                <button
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className={`py-2 px-4 rounded-md transition ${currentPage === totalPages
+                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                        }`}
+                                >
+                                    Next
+                                </button>
                             </div>
-                        ))}
-                    </div>
+                        )}
+
+                        {/* Results info */}
+                        <div className="text-center text-gray-600 mt-4">
+                            Showing {startIndex + 1}-{Math.min(endIndex, filteredGoats.length)} of {filteredGoats.length} goats
+                        </div>
+                    </>
                 )}
             </div>
         </div>

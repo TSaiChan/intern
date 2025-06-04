@@ -4,6 +4,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 
 import Login from './components/Login';
 import Register from './components/Register';
+import ResetPassword from './components/ResetPassword'; // NEW IMPORT
 import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import CompleteProfile from './components/CustomerProfile';
@@ -18,6 +19,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} /> {/* NEW ROUTE */}
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
 
         {/* Customer Routes with Layout */}

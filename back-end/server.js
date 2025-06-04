@@ -6,7 +6,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-
 const auth = require('./controllers/auth');
 const customer = require('./controllers/customer');
 const admin = require('./controllers/admin');
@@ -64,6 +63,11 @@ app.post('/api/users/register', auth.register);
 app.post('/api/login', auth.login);
 app.post('/api/logout', auth.logout);
 
+// NEW: Forgot Password routes
+app.post('/api/forgot-password', auth.forgotPasswordRequest);
+app.get('/api/verify-reset-token', auth.verifyResetToken);
+app.post('/api/reset-password', auth.resetPassword);
+
 // Customer routes
 app.post('/api/customer/profile', auth.validateSession, auth.isCustomer, upload.single('photo'), customer.updateCustomerProfile);
 app.put('/api/customer/profile', auth.validateSession, auth.isCustomer, upload.single('photo'), customer.updateCustomerProfile);
@@ -93,5 +97,5 @@ app.get('/api/customer/all-can-sell-requests', auth.validateSession, auth.isAdmi
 // Route for admin to fetch customer profile by user_id
 app.get('/api/customer/profile/:userId', auth.validateSession, auth.isAdmin, customer.getCustomerProfileById);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
