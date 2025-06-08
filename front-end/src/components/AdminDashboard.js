@@ -4,16 +4,22 @@ import Swal from 'sweetalert2';
 import { jwtDecode } from 'jwt-decode';
 import './css/login.css';
 
-import { FaTachometerAlt, FaSignOutAlt } from 'react-icons/fa';
+import { FaTachometerAlt, FaSignOutAlt } from 'react-icons/fa'; // Removed FaStethoscope
 
 function AdminDashboard() {
     const [requests, setRequests] = useState([]);
+    const [healthRecords, setHealthRecords] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadingHealth, setLoadingHealth] = useState(true);
     const [error, setError] = useState('');
+    const [errorHealth, setErrorHealth] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
+    const [currentHealthPage, setCurrentHealthPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
+    const [totalHealthPages, setTotalHealthPages] = useState(1);
     const [totalRequests, setTotalRequests] = useState(0);
-    const limit = 10; // Number of requests per page
+    const [totalHealthRecords, setTotalHealthRecords] = useState(0);
+    const limit = 10; // Number of items per page
     const navigate = useNavigate();
 
     const fetchRequests = (page) => {
@@ -24,6 +30,11 @@ function AdminDashboard() {
         })
             .then((res) => {
                 if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error(
+                            'Endpoint not found. Please ensure the /api/customer/all-can-sell-requests route is defined in server.js and the getAllCanSellRequests function exists in customer.js.'
+                        );
+                    }
                     throw new Error(`HTTP error! Status: ${res.status} ${res.statusText}`);
                 }
                 return res.json();
@@ -31,15 +42,47 @@ function AdminDashboard() {
             .then((data) => {
                 console.log('Fetched requests:', data);
                 setRequests(data.requests || []);
-                setCurrentPage(data.currentPage);
-                setTotalPages(data.totalPages);
-                setTotalRequests(data.totalRequests);
+                setCurrentPage(data.currentPage || page);
+                setTotalPages(data.totalPages || 1);
+                setTotalRequests(data.totalRequests || 0);
                 setLoading(false);
             })
             .catch((err) => {
                 console.error('Error fetching requests:', err.message);
                 setError(`Failed to load requests: ${err.message}`);
                 setLoading(false);
+            });
+    };
+
+    const fetchHealthRecords = (page) => {
+        setLoadingHealth(true);
+        const token = localStorage.getItem('token');
+        fetch(`http://localhost:3000/api/admin/goats/health?page=${page}&limit=${limit}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then((res) => {
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error(
+                            'Endpoint not found. Please ensure the /api/admin/goats/health route is defined in server.js and the getAllHealthRecords function exists in goats.js.'
+                        );
+                    }
+                    throw new Error(`HTTP error! Status: ${res.status} ${res.statusText}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                console.log('Fetched health records:', data);
+                setHealthRecords(data.records || []);
+                setCurrentHealthPage(data.currentPage || page);
+                setTotalHealthPages(data.totalPages || 1);
+                setTotalHealthRecords(data.totalRecords || 0);
+                setLoadingHealth(false);
+            })
+            .catch((err) => {
+                console.error('Error fetching health records:', err.message);
+                setErrorHealth(`Failed to load health records: ${err.message}`);
+                setLoadingHealth(false);
             });
     };
 
@@ -83,7 +126,8 @@ function AdminDashboard() {
         }
 
         fetchRequests(currentPage);
-    }, [navigate, currentPage]);
+        fetchHealthRecords(currentHealthPage);
+    }, [navigate, currentPage, currentHealthPage]);
 
     const handleRequestAction = (requestId, action) => {
         const token = localStorage.getItem('token');
@@ -109,7 +153,7 @@ function AdminDashboard() {
                         text: `Request has been ${action}d.`,
                         confirmButtonColor: '#3085d6',
                     });
-                    fetchRequests(currentPage); // Refresh the current page
+                    fetchRequests(currentPage);
                 } else {
                     Swal.fire({
                         icon: 'error',
@@ -171,8 +215,9 @@ function AdminDashboard() {
             });
     };
 
-    if (loading) return <div className="text-center p-10 text-gray-600">Loading...</div>;
+    if (loading || loadingHealth) return <div className="text-center p-10 text-gray-600">Loading...</div>;
     if (error) return <div className="text-center p-10 text-red-500">{error}</div>;
+    if (errorHealth) return <div className="text-center p-10 text-red-500">{errorHealth}</div>;
 
     return (
         <div className="flex font-poppins min-h-screen bg-gradient-to-br from-gray-100 to-blue-50">
@@ -210,8 +255,10 @@ function AdminDashboard() {
 
             <div className="flex-1 p-8">
                 <h2 className="text-4xl font-bold text-gray-800 mb-4">Admin Dashboard</h2>
+
+                {/* Sell Requests Section */}
                 <h3 className="text-2xl font-semibold text-gray-700 mb-8">Sell Requests</h3>
-                <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 mb-12">
                     <h3 className="text-xl font-semibold mb-4 text-gray-800">All Can Sell Requests</h3>
                     {requests.length === 0 ? (
                         <p className="text-gray-700">No requests found.</p>
@@ -304,6 +351,93 @@ function AdminDashboard() {
                                         onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                                         disabled={currentPage === totalPages}
                                         className={`px-4 py-2 rounded-lg ${currentPage === totalPages
+                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            } transition-colors duration-200`}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Health Records Section */}
+                <h3 className="text-2xl font-semibold text-gray-700 mb-8">Goat Health Records</h3>
+                <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                    <h3 className="text-xl font-semibold mb-4 text-gray-800">All Goat Health Records</h3>
+                    {healthRecords.length === 0 ? (
+                        <p className="text-gray-700">No health records found.</p>
+                    ) : (
+                        <>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-100">
+                                            <th className="p-3 text-gray-700 font-semibold">Goat ID</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Goat Number</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Breed</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Date Checked</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Health Type</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Description</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Veterinarian</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Next Due Date</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Status</th>
+                                            <th className="p-3 text-gray-700 font-semibold">Created At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {healthRecords.map((record) => (
+                                            <tr key={record.id} className="border-b hover:bg-gray-50">
+                                                <td className="p-3">{record.goat_id}</td>
+                                                <td className="p-3">{record.goat_number}</td>
+                                                <td className="p-3">{record.breed}</td>
+                                                <td className="p-3">{new Date(record.date_checked).toLocaleDateString()}</td>
+                                                <td className="p-3">{record.health_type}</td>
+                                                <td className="p-3">{record.description || 'N/A'}</td>
+                                                <td className="p-3">{record.veterinarian || 'N/A'}</td>
+                                                <td className="p-3">{record.next_due_date ? new Date(record.next_due_date).toLocaleDateString() : 'N/A'}</td>
+                                                <td className="p-3">
+                                                    <span
+                                                        className={`px-2 py-1 rounded-full text-sm ${record.status === 'Healthy'
+                                                                ? 'bg-green-100 text-green-700'
+                                                                : record.status === 'Needs Attention'
+                                                                    ? 'bg-yellow-100 text-yellow-700'
+                                                                    : 'bg-red-100 text-red-700'
+                                                            }`}
+                                                    >
+                                                        {record.status}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3">{new Date(record.created_at).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="flex justify-between items-center mt-4">
+                                <div className="text-gray-600">
+                                    Showing {healthRecords.length} of {totalHealthRecords} health records
+                                </div>
+                                <div className="space-x-2">
+                                    <button
+                                        onClick={() => setCurrentHealthPage((prev) => Math.max(prev - 1, 1))}
+                                        disabled={currentHealthPage === 1}
+                                        className={`px-4 py-2 rounded-lg ${currentHealthPage === 1
+                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                                : 'bg-blue-500 text-white hover:bg-blue-600'
+                                            } transition-colors duration-200`}
+                                    >
+                                        Previous
+                                    </button>
+                                    <span className="text-gray-600">
+                                        Page {currentHealthPage} of {totalHealthPages}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentHealthPage((prev) => Math.min(prev + 1, totalHealthPages))}
+                                        disabled={currentHealthPage === totalHealthPages}
+                                        className={`px-4 py-2 rounded-lg ${currentHealthPage === totalHealthPages
                                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                                 : 'bg-blue-500 text-white hover:bg-blue-600'
                                             } transition-colors duration-200`}

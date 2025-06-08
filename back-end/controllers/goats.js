@@ -355,6 +355,216 @@ const getAvailableGoats = (req, res) => {
     );
 };
 
+const addHealthRecord = (req, res) => {
+    const userId = req.user.userId;
+    const { goat_id, date_checked, health_type, description, veterinarian, next_due_date, status } = req.body;
+
+    if (!goat_id || !date_checked || !health_type || !status) {
+        return res.status(400).json({ message: 'Goat ID, date checked, health type, and status are required' });
+    }
+
+    if (!['vaccination', 'checkup', 'deworming'].includes(health_type)) {
+        return res.status(400).json({ message: 'Health type must be one of: vaccination, checkup, deworming' });
+    }
+
+    if (!['Healthy', 'Needs Attention', 'Critical'].includes(status)) {
+        return res.status(400).json({ message: 'Status must be one of: Healthy, Needs Attention, Critical' });
+    }
+
+    if (new Date(date_checked) > new Date()) {
+        return res.status(400).json({ message: 'Date checked cannot be in the future' });
+    }
+
+    if (next_due_date && new Date(next_due_date) < new Date(date_checked)) {
+        return res.status(400).json({ message: 'Next due date cannot be before date checked' });
+    }
+
+    db.query('SELECT * FROM goats WHERE id = ? AND user_id = ?', [goat_id, userId], (err, results) => {
+        if (err) {
+            console.error('DB error while checking goat:', err);
+            return res.status(500).json({ message: 'Database error', error: err.message });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Goat not found or you are not authorized to add health records for this goat' });
+        }
+
+        db.query(
+            `INSERT INTO goat_health_records (goat_id, date_checked, health_type, description, veterinarian, next_due_date, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+            [goat_id, date_checked, health_type, description || null, veterinarian || null, next_due_date || null, status],
+            (err) => {
+                if (err) {
+                    console.error('DB error while adding health record:', err);
+                    return res.status(500).json({ message: 'Failed to add health record', error: err.message });
+                }
+                res.status(201).json({ message: 'Health record added successfully' });
+            }
+        );
+    });
+};
+
+const getHealthRecords = (req, res) => {
+    const userId = req.user.userId;
+    const goatId = req.params.goatId;
+
+    db.query('SELECT * FROM goats WHERE id = ? AND user_id = ?', [goatId, userId], (err, results) => {
+        if (err) {
+            console.error('DB error while checking goat:', err);
+            return res.status(500).json({ message: 'Database error', error: err.message });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Goat not found or you are not authorized to view health records for this goat' });
+        }
+
+        db.query(
+            'SELECT * FROM goat_health_records WHERE goat_id = ? ORDER BY date_checked DESC',
+            [goatId],
+            (err, healthRecords) => {
+                if (err) {
+                    console.error('DB error while fetching health records:', err);
+                    return res.status(500).json({ message: 'Failed to fetch health records', error: err.message });
+                }
+                res.json(healthRecords);
+            }
+        );
+    });
+};
+
+const updateHealthRecord = (req, res) => {
+    const userId = req.user.userId;
+    const healthId = req.params.id;
+    const { goat_id, date_checked, health_type, description, veterinarian, next_due_date, status } = req.body;
+
+    db.query('SELECT * FROM goats WHERE id = ? AND user_id = ?', [goat_id, userId], (err, results) => {
+        if (err) {
+            console.error('DB error while checking goat:', err);
+            return res.status(500).json({ message: 'Database error', error: err.message });
+        }
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Goat not found or you are not authorized to update health records for this goat' });
+        }
+
+        db.query('SELECT * FROM goat_health_records WHERE id = ? AND goat_id = ?', [healthId, goat_id], (err, healthResults) => {
+            if (err) {
+                console.error('DB error while checking health record:', err);
+                return res.status(500).json({ message: 'Database error', error: err.message });
+            }
+            if (healthResults.length === 0) {
+                return res.status(404).json({ message: 'Health record not found' });
+            }
+
+            const existingRecord = healthResults[0];
+
+            if (date_checked && new Date(date_checked) > new Date()) {
+                return res.status(400).json({ message: 'Date checked cannot be in the future' });
+            }
+            if (next_due_date && date_checked && new Date(next_due_date) < new Date(date_checked)) {
+                return res.status(400).json({ message: 'Next due date cannot be before date checked' });
+            }
+            if (health_type && !['vaccination', 'checkup', 'deworming'].includes(health_type)) {
+                return res.status(400).json({ message: 'Health type must be one of: vaccination, checkup, deworming' });
+            }
+            if (status && !['Healthy', 'Needs Attention', 'Critical'].includes(status)) {
+                return res.status(400).json({ message: 'Status must be one of: Healthy, Needs Attention, Critical' });
+            }
+
+            db.query(
+                `UPDATE goat_health_records SET
+                 date_checked = ?,
+                 health_type = ?,
+                 description = ?,
+                 veterinarian = ?,
+                 next_due_date = ?,
+                 status = ?
+                 WHERE id = ?`,
+                [
+                    date_checked || existingRecord.date_checked,
+                    health_type || existingRecord.health_type,
+                    description !== undefined ? description : existingRecord.description,
+                    veterinarian !== undefined ? veterinarian : existingRecord.veterinarian,
+                    next_due_date !== undefined ? next_due_date : existingRecord.next_due_date,
+                    status || existingRecord.status,
+                    healthId,
+                ],
+                (err) => {
+                    if (err) {
+                        console.error('DB error while updating health record:', err);
+                        return res.status(500).json({ message: 'Failed to update health record', error: err.message });
+                    }
+                    res.json({ message: 'Health record updated successfully' });
+                }
+            );
+        });
+    });
+};
+
+const deleteHealthRecord = (req, res) => {
+    const userId = req.user.userId;
+    const healthId = req.params.id;
+
+    db.query(
+        'SELECT gh.*, g.user_id FROM goat_health_records gh JOIN goats g ON gh.goat_id = g.id WHERE gh.id = ? AND g.user_id = ?',
+        [healthId, userId],
+        (err, results) => {
+            if (err) {
+                console.error('DB error while checking health record:', err);
+                return res.status(500).json({ message: 'Database error', error: err.message });
+            }
+            if (results.length === 0) {
+                return res.status(404).json({ message: 'Health record not found or you are not authorized to delete this record' });
+            }
+
+            db.query('DELETE FROM goat_health_records WHERE id = ?', [healthId], (err) => {
+                if (err) {
+                    console.error('DB error while deleting health record:', err);
+                    return res.status(500).json({ message: 'Failed to delete health record', error: err.message });
+                }
+                res.json({ message: 'Health record deleted successfully' });
+            });
+        }
+    );
+};
+
+const getAllHealthRecords = (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    db.query(
+        'SELECT COUNT(*) as total FROM goat_health_records',
+        (err, countResult) => {
+            if (err) {
+                console.error('DB error while counting health records:', err);
+                return res.status(500).json({ message: 'Failed to fetch health records', error: err.message });
+            }
+
+            const totalRecords = countResult[0].total;
+            const totalPages = Math.ceil(totalRecords / limit);
+
+            db.query(
+                `SELECT gh.*, g.goat_number, g.breed 
+                 FROM goat_health_records gh 
+                 JOIN goats g ON gh.goat_id = g.id 
+                 ORDER BY gh.date_checked DESC 
+                 LIMIT ? OFFSET ?`,
+                [limit, offset],
+                (err, results) => {
+                    if (err) {
+                        console.error('DB error while fetching health records:', err);
+                        return res.status(500).json({ message: 'Failed to fetch health records', error: err.message });
+                    }
+                    res.json({
+                        records: results,
+                        currentPage: page,
+                        totalPages: totalPages,
+                        totalRecords: totalRecords,
+                    });
+                }
+            );
+        }
+    );
+};
+
 module.exports = {
     addGoat,
     getMyGoats,
@@ -363,4 +573,9 @@ module.exports = {
     getPurchases,
     addPurchase,
     getAvailableGoats,
+    addHealthRecord,
+    getHealthRecords,
+    updateHealthRecord,
+    deleteHealthRecord,
+    getAllHealthRecords,
 };

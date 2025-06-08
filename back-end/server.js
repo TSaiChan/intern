@@ -52,10 +52,6 @@ db.query('SELECT 1', (err) => {
   else console.log('✅ DB Connected');
 });
 
-// Debugging: Log the goats module to verify exports
-console.log('Goats module exports:', Object.keys(goats));
-console.log('Is deactivateGoat a function?', typeof goats.deactivateGoat === 'function');
-
 // Authentication routes
 app.post('/api/users/send-otp', auth.sendOtp);
 app.post('/api/users/verify-otp', auth.verifyOtp);
@@ -63,7 +59,7 @@ app.post('/api/users/register', auth.register);
 app.post('/api/login', auth.login);
 app.post('/api/logout', auth.logout);
 
-// NEW: Forgot Password routes
+// Forgot Password routes
 app.post('/api/forgot-password', auth.forgotPasswordRequest);
 app.get('/api/verify-reset-token', auth.verifyResetToken);
 app.post('/api/reset-password', auth.resetPassword);
@@ -74,27 +70,28 @@ app.put('/api/customer/profile', auth.validateSession, auth.isCustomer, upload.s
 app.get('/api/customer/profile', auth.validateSession, auth.isCustomer, customer.getCustomerProfile);
 app.get('/api/customer/goats/count', auth.validateSession, auth.isCustomer, customer.getGoatCount);
 
-// Goat-related routes using goats.js
+// New: Can-sell requests route for admin
+app.get('/api/customer/all-can-sell-requests', auth.validateSession, auth.isAdmin, customer.getAllCanSellRequests);
+
+// Goat-related routes
 app.post('/api/customer/goats', auth.validateSession, auth.isCustomer, upload.single('image'), goats.addGoat);
 app.get('/api/customer/goats', auth.validateSession, auth.isCustomer, goats.getMyGoats);
 app.put('/api/customer/goats/:id', auth.validateSession, auth.isCustomer, upload.single('image'), goats.updateGoat);
 app.patch('/api/customer/goats/:id/deactivate', auth.validateSession, auth.isCustomer, goats.deactivateGoat);
 app.post('/api/customer/goats/purchase', auth.validateSession, auth.isCustomer, goats.addPurchase);
-
-// Additional goat routes
 app.get('/api/customer/purchases', auth.validateSession, auth.isCustomer, goats.getPurchases);
-
-// New route for available goats
 app.get('/api/goats/available', auth.validateSession, auth.isCustomer, goats.getAvailableGoats);
 
-// Admin routes
-app.get('/api/admin/customers', auth.validateSession, auth.isAdmin, admin.listCustomers);
-app.put('/api/admin/approve-seller/:userId', auth.validateSession, auth.isAdmin, admin.approveSeller);
-app.get('/api/customer/pending-can-sell-requests', auth.validateSession, auth.isAdmin, customer.getPendingCanSellRequests);
-app.post('/api/customer/handle-can-sell-request', auth.validateSession, auth.isAdmin, customer.handleCanSellRequest);
-app.get('/api/customer/all-can-sell-requests', auth.validateSession, auth.isAdmin, customer.getAllCanSellRequests);
+// Health record routes
+app.post('/api/customer/goats/health', auth.validateSession, auth.isCustomer, goats.addHealthRecord);
+app.get('/api/customer/goats/:goatId/health', auth.validateSession, auth.isCustomer, goats.getHealthRecords);
+app.put('/api/customer/goats/health/:id', auth.validateSession, auth.isCustomer, goats.updateHealthRecord);
+app.delete('/api/customer/goats/health/:id', auth.validateSession, auth.isCustomer, goats.deleteHealthRecord);
 
-// Route for admin to fetch customer profile by user_id
+// Admin route for all health records
+app.get('/api/admin/goats/health', auth.validateSession, auth.isAdmin, goats.getAllHealthRecords);
+
+// Admin route for customer profile
 app.get('/api/customer/profile/:userId', auth.validateSession, auth.isAdmin, customer.getCustomerProfileById);
 
 const PORT = process.env.PORT || 5000;
