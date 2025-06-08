@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { jwtDecode } from 'jwt-decode';
@@ -9,12 +9,12 @@ function MyGoats() {
     const [filteredGoats, setFilteredGoats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [healthRecords, setHealthRecords] = useState({});
     const navigate = useNavigate();
 
-    // Search and pagination states
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 6; // Items per page
+    const itemsPerPage = 6;
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -59,9 +59,6 @@ function MyGoats() {
             .then((res) => res.json())
             .then((data) => {
                 console.log('MyGoats API response:', data);
-                data.forEach((goat) => {
-                    console.log(`Goat #${goat.goat_number}: is_active = ${goat.is_active}, type = ${typeof goat.is_active}`);
-                });
                 setGoats(data);
                 setFilteredGoats(data);
                 data.forEach((goat) => {
@@ -75,6 +72,7 @@ function MyGoats() {
                     } else {
                         console.log(`No image_url for goat ${goat.goat_number}`);
                     }
+                    fetchHealthRecords(goat.id, token);
                 });
                 setLoading(false);
             })
@@ -85,24 +83,41 @@ function MyGoats() {
             });
     }, [navigate]);
 
-    // Search functionality
+    const fetchHealthRecords = (goatId, token) => {
+        fetch(`http://localhost:3000/api/customer/goats/${goatId}/health`, {
+            headers: { Authorization: `Bearer ${token}` },
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                console.log(`Health records for goat ${goatId}:`, data);
+                setHealthRecords((prev) => ({ ...prev, [goatId]: data }));
+            })
+            .catch((err) => {
+                console.error(`Error fetching health records for goat ${goatId}:`, err);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Failed to load health records.',
+                    confirmButtonColor: '#3085d6',
+                });
+            });
+    };
+
     useEffect(() => {
         const filtered = goats.filter((goat) => {
             const goatName = `Goat #${goat.goat_number} - ${goat.breed}`.toLowerCase();
             return goatName.includes(searchTerm.toLowerCase());
         });
         setFilteredGoats(filtered);
-        setCurrentPage(1); // Reset to first page when searching
+        setCurrentPage(1);
     }, [goats, searchTerm]);
 
-    // Pagination calculations
     const totalPages = Math.ceil(filteredGoats.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentGoats = filteredGoats.slice(startIndex, endIndex);
 
     const handleSearch = () => {
-        // Search is already handled by useEffect
         console.log('Searching for:', searchTerm);
     };
 
@@ -144,13 +159,12 @@ function MyGoats() {
                 const token = localStorage.getItem('token');
                 const newStatus = !currentStatus;
 
-                fetch(`http://localhost:3000/api/customer/goats/${goatId}/status`, {
+                fetch(`http://localhost:3000/api/customer/goats/${goatId}/deactivate`, {
                     method: 'PATCH',
                     headers: {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ is_active: newStatus }),
                 })
                     .then((res) => {
                         if (!res.ok) {
@@ -213,6 +227,11 @@ function MyGoats() {
                         });
                         setGoats(goats.filter((goat) => goat.id !== goatId));
                         setFilteredGoats(filteredGoats.filter((goat) => goat.id !== goatId));
+                        setHealthRecords((prev) => {
+                            const updated = { ...prev };
+                            delete updated[goatId];
+                            return updated;
+                        });
                     })
                     .catch((err) => {
                         Swal.fire({
@@ -225,6 +244,334 @@ function MyGoats() {
             }
         });
     };
+
+    const handleViewHealthRecords = (goat) => {
+        const records = healthRecords[goat.id] || [];
+        if (records.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: `Health Records for Goat #${goat.goat_number} - ${goat.breed}`,
+                text: 'No health records found.',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#6b7280',
+                confirmButtonText: 'Add Health Record',
+                cancelButtonText: 'Close',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    handleAddHealthRecord(goat);
+                }
+            });
+            return;
+        }
+
+        const html = `
+      <div style="text-align: left; max-height: 400px; overflow-y: auto;">
+        ${records
+                .map(
+                    (record) => `
+          <div style="border-bottom: 1px solid #ddd; padding: 10px 0;">
+            <p><strong>Date Checked:</strong> ${new Date(record.date_checked).toLocaleDateString()}</p>
+            <p><strong>Type:</strong> ${record.health_type}</p>
+            <p><strong>Description:</strong> ${record.description || 'N/A'}</p>
+            <p><strong>Veterinarian:</strong> ${record.veterinarian || 'N/A'}</p>
+            <p><strong>Next Due Date:</strong> ${record.next_due_date ? new Date(record.next_due_date).toLocaleDateString() : 'N/A'}</p>
+            <p><strong>Status:</strong> ${record.status}</p>
+            <button class="swal2-confirm swal2-styled" style="background-color: #3085d6; margin-right: 10px;" onclick="Swal.close(); document.dispatchEvent(new CustomEvent('editHealthRecord', { detail: { id: ${record.id}, goatId: ${goat.id} } }));">Edit</button>
+            <button class="swal2-cancel swal2-styled" style="background-color: #d33;" onclick="Swal.close(); document.dispatchEvent(new CustomEvent('deleteHealthRecord', { detail: { id: ${record.id}, goatId: ${goat.id} } }));">Delete</button>
+          </div>
+        `
+                )
+                .join('')}
+      </div>
+    `;
+        Swal.fire({
+            icon: 'info',
+            title: `Health Records for Goat #${goat.goat_number} - ${goat.breed}`,
+            html,
+            confirmButtonColor: '#3085d6',
+            confirmButtonText: 'Close',
+            showCancelButton: true,
+            cancelButtonColor: '#6b7280',
+            cancelButtonText: 'Add Health Record',
+        }).then((result) => {
+            if (result.dismiss === Swal.DismissReason.cancel) {
+                handleAddHealthRecord(goat);
+            }
+        });
+    };
+
+    const handleAddHealthRecord = (goat) => {
+        Swal.fire({
+            title: `Add Health Record for Goat #${goat.goat_number} - ${goat.breed}`,
+            html: `
+        <div style="text-align: left; max-width: 400px; margin: 0 auto;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Date Checked:</label>
+              <input type="date" id="date_checked" class="swal2-input" style="width: 100%; padding: 8px; border-radius: 4px;" max="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Health Type:</label>
+              <select id="health_type" class="swal2-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                <option value="" disabled hidden>Select</option>
+                <option value="vaccination">Vaccination</option>
+                <option value="checkup">Checkup</option>
+                <option value="deworming">Deworming</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Description:</label>
+              <textarea id="description" class="swal2-textarea" placeholder="Enter description (optional)" style="width: 100%; padding: 8px; border-radius: 4px; resize: vertical;"></textarea>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Veterinarian:</label>
+              <input type="text" id="veterinarian" class="swal2-input" placeholder="Enter veterinarian name (optional)" style="width: 100%; padding: 8px; border-radius: 4px;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Next Due Date:</label>
+              <input type="date" id="next_due_date" class="swal2-input" placeholder="Select next due date (optional)" style="width: 100%; padding: 8px; border-radius: 4px;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Status:</label>
+              <select id="status" class="swal2-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                <option value="" disabled hidden>Select</option>
+                <option value="Healthy">Healthy</option>
+                <option value="Needs Attention">Needs Attention</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `,
+            didOpen: () => {
+                // Force the dropdowns to select the placeholder option
+                document.getElementById('health_type').value = '';
+                document.getElementById('status').value = '';
+            },
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Add',
+            preConfirm: () => {
+                const date_checked = document.getElementById('date_checked').value;
+                const health_type = document.getElementById('health_type').value;
+                const description = document.getElementById('description').value;
+                const veterinarian = document.getElementById('veterinarian').value;
+                const next_due_date = document.getElementById('next_due_date').value;
+                const status = document.getElementById('status').value;
+
+                if (!date_checked || !health_type || !status) {
+                    Swal.showValidationMessage('Please fill in Date Checked, Health Type, and Status');
+                    return false;
+                }
+                return { date_checked, health_type, description, veterinarian, next_due_date, status, goat_id: goat.id };
+            },
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const token = localStorage.getItem('token');
+                fetch('http://localhost:3000/api/customer/goats/health', {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(result.value),
+                })
+                    .then((res) => {
+                        if (!res.ok) {
+                            throw new Error('Failed to add health record');
+                        }
+                        return res.json();
+                    })
+                    .then((data) => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Health Record Added',
+                            text: data.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                        fetchHealthRecords(goat.id, token);
+                    })
+                    .catch((err) => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: err.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                    });
+            }
+        });
+    };
+
+    const handleEditHealthRecord = useCallback((healthId, goatId) => {
+        const record = healthRecords[goatId]?.find((r) => r.id === healthId);
+        if (!record) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Health record not found.',
+                confirmButtonColor: '#3085d6',
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: `Edit Health Record for Goat`,
+            html: `
+        <div style="text-align: left; max-width: 400px; margin: 0 auto;">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Date Checked:</label>
+              <input type="date" id="date_checked" class="swal2-input" value="${record.date_checked.split('T')[0]}" style="width: 100%; padding: 8px; border-radius: 4px;" max="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Health Type:</label>
+              <select id="health_type" class="swal2-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                <option value="" disabled hidden>Select</option>
+                <option value="vaccination" ${record.health_type === 'vaccination' ? 'selected' : ''}>Vaccination</option>
+                <option value="checkup" ${record.health_type === 'checkup' ? 'selected' : ''}>Checkup</option>
+                <option value="deworming" ${record.health_type === 'deworming' ? 'selected' : ''}>Deworming</option>
+              </select>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Description:</label>
+              <textarea id="description" class="swal2-textarea" style="width: 100%; padding: 8px; border-radius: 4px; resize: vertical;">${record.description || ''}</textarea>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Veterinarian:</label>
+              <input type="text" id="veterinarian" class="swal2-input" value="${record.veterinarian || ''}" style="width: 100%; padding: 8px; border-radius: 4px;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Next Due Date:</label>
+              <input type="date" id="next_due_date" class="swal2-input" value="${record.next_due_date ? record.next_due_date.split('T')[0] : ''}" style="width: 100%; padding: 8px; border-radius: 4px;">
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <label style="font-weight: 500; color: #333;">Status:</label>
+              <select id="status" class="swal2-select" style="width: 100%; padding: 8px; border-radius: 4px;">
+                <option value="" disabled hidden>Select</option>
+                <option value="Healthy" ${record.status === 'Healthy' ? 'selected' : ''}>Healthy</option>
+                <option value="Needs Attention" ${record.status === 'Needs Attention' ? 'selected' : ''}>Needs Attention</option>
+                <option value="Critical" ${record.status === 'Critical' ? 'selected' : ''}>Critical</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Update',
+            preConfirm: () => {
+                const date_checked = document.getElementById('date_checked').value;
+                const health_type = document.getElementById('health_type').value;
+                const description = document.getElementById('description').value;
+                const veterinarian = document.getElementById('veterinarian').value;
+                const next_due_date = document.getElementById('next_due_date').value;
+                const status = document.getElementById('status').value;
+
+                if (!date_checked || !health_type || !status) {
+                    Swal.showValidationMessage('Please fill in Date Checked, Health Type, and Status');
+                    return false;
+                }
+                return { date_checked, health_type, description, veterinarian, next_due_date, status, goat_id: goatId };
+            },
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const token = localStorage.getItem('token');
+                fetch(`http://localhost:3000/api/customer/goats/health/${healthId}`, {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(result.value),
+                })
+                    .then((res) => {
+                        if (!res.ok) {
+                            throw new Error('Failed to update health record');
+                        }
+                        return res.json();
+                    })
+                    .then((data) => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Health Record Updated',
+                            text: data.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                        fetchHealthRecords(goatId, token);
+                    })
+                    .catch((err) => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: err.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                    });
+            }
+        });
+    }, [healthRecords, fetchHealthRecords]);
+
+    const handleDeleteHealthRecord = useCallback((healthId, goatId) => {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Are you sure?',
+            text: 'This action will permanently delete the health record!',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const token = localStorage.getItem('token');
+                fetch(`http://localhost:3000/api/customer/goats/health/${healthId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                })
+                    .then((res) => {
+                        if (!res.ok) {
+                            throw new Error('Failed to delete health record');
+                        }
+                        return res.json();
+                    })
+                    .then((data) => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Health Record Deleted',
+                            text: data.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                        fetchHealthRecords(goatId, token);
+                    })
+                    .catch((err) => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: err.message,
+                            confirmButtonColor: '#3085d6',
+                        });
+                    });
+            }
+        });
+    }, [fetchHealthRecords]);
+
+    useEffect(() => {
+        const handleEdit = (e) => handleEditHealthRecord(e.detail.id, e.detail.goatId);
+        const handleDelete = (e) => handleDeleteHealthRecord(e.detail.id, e.detail.goatId);
+        document.addEventListener('editHealthRecord', handleEdit);
+        document.addEventListener('deleteHealthRecord', handleDelete);
+        return () => {
+            document.removeEventListener('editHealthRecord', handleEdit);
+            document.removeEventListener('deleteHealthRecord', handleDelete);
+        };
+    }, [handleEditHealthRecord, handleDeleteHealthRecord]);
 
     const handleBack = () => {
         navigate('/customer-dashboard');
@@ -253,7 +600,6 @@ function MyGoats() {
                         Back
                     </button>
 
-                    {/* Search Section */}
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
@@ -339,7 +685,6 @@ function MyGoats() {
                                                     padding: '4px',
                                                 }}
                                             >
-                                                {console.log(`Rendering goat: Number = ${goat.goat_number}, Breed = ${goat.breed}`)}
                                                 {goat.goat_number && goat.breed
                                                     ? `Goat #${goat.goat_number} - ${goat.breed}`
                                                     : 'Goat Name Unavailable'}
@@ -420,21 +765,40 @@ function MyGoats() {
                                                 </svg>
                                                 Delete
                                             </button>
+                                            <button
+                                                onClick={() => handleViewHealthRecords(goat)}
+                                                className="flex-1 py-2 px-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition flex items-center justify-center gap-1"
+                                                title="Health Records"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                                                </svg>
+                                                Health
+                                            </button>
+                                            <button
+                                                onClick={() => handleAddHealthRecord(goat)}
+                                                className="flex-1 py-2 px-3 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition flex items-center justify-center gap-1"
+                                                title="Add Health Record"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                </svg>
+                                                Add Health
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        {/* Pagination */}
                         {totalPages > 1 && (
                             <div className="flex justify-center items-center gap-2 mt-6">
                                 <button
                                     onClick={() => handlePageChange(currentPage - 1)}
                                     disabled={currentPage === 1}
                                     className={`py-2 px-4 rounded-md transition ${currentPage === 1
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700'
                                         }`}
                                 >
                                     Previous
@@ -445,8 +809,8 @@ function MyGoats() {
                                         key={index + 1}
                                         onClick={() => handlePageChange(index + 1)}
                                         className={`py-2 px-4 rounded-md transition ${currentPage === index + 1
-                                                ? 'bg-blue-600 text-white'
-                                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                                             }`}
                                     >
                                         {index + 1}
@@ -457,8 +821,8 @@ function MyGoats() {
                                     onClick={() => handlePageChange(currentPage + 1)}
                                     disabled={currentPage === totalPages}
                                     className={`py-2 px-4 rounded-md transition ${currentPage === totalPages
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-blue-600 text-white hover:bg-blue-700'
                                         }`}
                                 >
                                     Next
@@ -466,7 +830,6 @@ function MyGoats() {
                             </div>
                         )}
 
-                        {/* Results info */}
                         <div className="text-center text-gray-600 mt-4">
                             Showing {startIndex + 1}-{Math.min(endIndex, filteredGoats.length)} of {filteredGoats.length} goats
                         </div>
