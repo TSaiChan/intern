@@ -19,11 +19,10 @@ const db = require("./config/db");
 const app = express();
 
 // Configure CORS
-const corsOptions = {
+app.use(cors({
   origin: "http://localhost:3001",
-  credentials: true,
-};
-app.use(cors(corsOptions));
+  credentials: true
+}));
 
 // Parse JSON requests
 app.use(bodyParser.json());
@@ -37,96 +36,85 @@ if (!fs.existsSync(uploadDir)) {
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
+  destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
+  }
 });
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
-// Serve static files from uploads directory
+// Serve uploaded images
 app.use("/uploads", express.static(uploadDir));
 
-// Database connection check
+// Check DB connection
 db.query("SELECT 1", (err) => {
-  if (err) console.log("❌ DB Error:", err);
+  if (err) console.error("❌ DB Error:", err);
   else console.log("✅ DB Connected");
 });
 
-// Authentication routes
+// ===================== ROUTES =====================
+
+// Auth
 app.post("/api/users/send-otp", auth.sendOtp);
 app.post("/api/users/verify-otp", auth.verifyOtp);
 app.post("/api/users/register", auth.register);
 app.post("/api/login", auth.login);
 app.post("/api/logout", auth.logout);
 
-// Forgot Password routes
+// Forgot Password
 app.post("/api/forgot-password", auth.forgotPasswordRequest);
 app.get("/api/verify-reset-token", auth.verifyResetToken);
 app.post("/api/reset-password", auth.resetPassword);
 
-// Customer routes
-app.post(
-  "/api/customer/profile",
-  auth.validateSession,
-  auth.isCustomer,
-  upload.single("photo"),
-  customer.updateCustomerProfile
-);
-app.put(
-  "/api/customer/profile",
-  auth.validateSession,
-  auth.isCustomer,
-  upload.single("photo"),
-  customer.updateCustomerProfile
-);
+// Customer Profile
+app.post("/api/customer/profile", auth.validateSession, auth.isCustomer, upload.single("photo"), customer.updateCustomerProfile);
+app.put("/api/customer/profile", auth.validateSession, auth.isCustomer, upload.single("photo"), customer.updateCustomerProfile);
 app.get("/api/customer/profile", auth.validateSession, auth.isCustomer, customer.getCustomerProfile);
 app.get("/api/customer/goats/count", auth.validateSession, auth.isCustomer, customer.getGoatCount);
 
-// Admin can-sell requests
+// Admin - Can Sell Requests
 app.get("/api/customer/all-can-sell-requests", auth.validateSession, auth.isAdmin, customer.getAllCanSellRequests);
 
-// Goat routes
+// Goat Management
 app.post("/api/customer/goats", auth.validateSession, auth.isCustomer, upload.single("image"), goats.addGoat);
 app.get("/api/customer/goats", auth.validateSession, auth.isCustomer, goats.getMyGoats);
 app.put("/api/customer/goats/:id", auth.validateSession, auth.isCustomer, upload.single("image"), goats.updateGoat);
 app.patch("/api/customer/goats/:id/deactivate", auth.validateSession, auth.isCustomer, goats.deactivateGoat);
-app.post("/api/customer/goats/purchase", auth.validateSession, auth.isCustomer, goats.addPurchase);
-app.get("/api/customer/purchases", auth.validateSession, auth.isCustomer, goats.getPurchases);
-app.get("/api/goats/available", auth.validateSession, auth.isCustomer, goats.getAvailableGoats);
 
-// Purchase route (compatibility)
-app.post("/api/purchases", auth.validateSession, auth.isCustomer, goats.addPurchase);
-
-// Wishlist routes
-app.post("/api/wishlist", auth.validateSession, auth.isCustomer, wishlist.addToWishlist);
-app.delete("/api/wishlist/:goat_id", auth.validateSession, auth.isCustomer, wishlist.removeFromWishlist);
-app.get("/api/wishlist", auth.validateSession, auth.isCustomer, wishlist.getUserWishlist);
-app.get("/api/wishlist/check/:goat_id", auth.validateSession, auth.isCustomer, wishlist.checkWishlistStatus);
-
-// Health record routes
+// Goat Health Records
 app.post("/api/customer/goats/health", auth.validateSession, auth.isCustomer, goats.addHealthRecord);
 app.get("/api/customer/goats/:goatId/health", auth.validateSession, auth.isCustomer, goats.getHealthRecords);
 app.put("/api/customer/goats/health/:id", auth.validateSession, auth.isCustomer, goats.updateHealthRecord);
 app.delete("/api/customer/goats/health/:id", auth.validateSession, auth.isCustomer, goats.deleteHealthRecord);
 
-// Admin health access
+// Admin Health Record View
 app.get("/api/admin/goats/health", auth.validateSession, auth.isAdmin, goats.getAllHealthRecords);
 
-// Admin profile viewing
+// Goat Purchases
+app.post("/api/customer/goats/purchase", auth.validateSession, auth.isCustomer, goats.addPurchase);
+app.get("/api/customer/purchases", auth.validateSession, auth.isCustomer, goats.getPurchases);
+app.get("/api/goats/available", auth.validateSession, auth.isCustomer, goats.getAvailableGoats);
+
+// Compatibility: purchase fallback route
+app.post("/api/purchases", auth.validateSession, auth.isCustomer, goats.addPurchase);
+
+// Wishlist
+app.post("/api/wishlist", auth.validateSession, auth.isCustomer, wishlist.addToWishlist);
+app.delete("/api/wishlist/:goat_id", auth.validateSession, auth.isCustomer, wishlist.removeFromWishlist);
+app.get("/api/wishlist", auth.validateSession, auth.isCustomer, wishlist.getUserWishlist);
+app.get("/api/wishlist/check/:goat_id", auth.validateSession, auth.isCustomer, wishlist.checkWishlistStatus);
+
+// Profile View by Admin
 app.get("/api/customer/profile/:userId", auth.validateSession, auth.isAdmin, customer.getCustomerProfileById);
 
-// Goat Ratings
+// Ratings & Reviews
 app.post("/api/ratings", auth.validateSession, auth.isCustomer, ratings.submitGoatRating);
 app.get("/api/goats/:id/ratings", ratings.getGoatRatings);
 
-// Seller Reviews
 app.post("/api/seller-reviews", auth.validateSession, auth.isCustomer, sellerReviews.submitSellerReview);
 app.get("/api/sellers/:id/reviews", sellerReviews.getSellerReviews);
 
-
+// Server start
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));

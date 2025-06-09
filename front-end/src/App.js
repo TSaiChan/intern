@@ -1,17 +1,18 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
-import "@fortawesome/fontawesome-free/css/all.min.css"
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
-import Login from "./components/Login"
-import Register from "./components/Register"
-import ResetPassword from "./components/ResetPassword"
-import CustomerDashboard from "./components/CustomerDashboard"
-import AdminDashboard from "./components/AdminDashboard"
-import CompleteProfile from "./components/CustomerProfile"
-import SellGoat from "./components/SellGoat"
-import MyGoats from "./components/Mygoats"
-import BuyGoats from "./components/BuyGoats"
-import Wishlist from "./components/Wishlist"
-import CustomerLayout from "./components/CustomerLayout"
+import Login from "./components/Login";
+import Register from "./components/Register";
+import ResetPassword from "./components/ResetPassword";
+import CustomerDashboard from "./components/CustomerDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import CompleteProfile from "./components/CustomerProfile";
+import SellGoat from "./components/SellGoat";
+import MyGoats from "./components/Mygoats";
+import BuyGoats from "./components/BuyGoats";
+import Wishlist from "./components/Wishlist";
+import MyPurchases from "./components/MyPurchases"; // ✅ import this
+import CustomerLayout from "./components/CustomerLayout";
 
 function App() {
   return (
@@ -30,10 +31,11 @@ function App() {
           <Route path="my-goats" element={<MyGoats />} />
           <Route path="buy-goats" element={<BuyGoats />} />
           <Route path="wishlist" element={<Wishlist />} />
+          <Route path="my-purchases" element={<MyPurchases />} /> {/* ✅ new route */}
         </Route>
       </Routes>
     </Router>
-  )
+  );
 }
 
-export default App
+export default App;

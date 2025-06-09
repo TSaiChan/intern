@@ -133,8 +133,7 @@ function CustomerLayout() {
                     <li>
                         <button
                             onClick={() => navigate("/customer-dashboard")}
-                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/customer-dashboard") ? "bg-blue-700" : "hover:bg-blue-700"
-                                }`}
+                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/customer-dashboard") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                         >
                             <FaTachometerAlt className="mr-3" />
                             Dashboard
@@ -145,8 +144,7 @@ function CustomerLayout() {
                             <li>
                                 <button
                                     onClick={() => navigate("/buy-goats")}
-                                    className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/buy-goats") ? "bg-blue-700" : "hover:bg-blue-700"
-                                        }`}
+                                    className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/buy-goats") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                                 >
                                     <FaShoppingCart className="mr-3" />
                                     Buy Goats
@@ -155,11 +153,19 @@ function CustomerLayout() {
                             <li>
                                 <button
                                     onClick={() => navigate("/wishlist")}
-                                    className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/wishlist") ? "bg-blue-700" : "hover:bg-blue-700"
-                                        }`}
+                                    className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/wishlist") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                                 >
                                     <FaHeart className="mr-3" />
                                     Wishlist
+                                </button>
+                            </li>
+                            <li>
+                                <button
+                                    onClick={() => navigate("/my-purchases")}
+                                    className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/my-purchases") ? "bg-blue-700" : "hover:bg-blue-700"}`}
+                                >
+                                    <FaShoppingCart className="mr-3" />
+                                    Purchased Goats
                                 </button>
                             </li>
                         </>
@@ -167,8 +173,7 @@ function CustomerLayout() {
                     <li>
                         <button
                             onClick={() => navigate("/my-goats")}
-                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/my-goats") ? "bg-blue-700" : "hover:bg-blue-700"
-                                }`}
+                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/my-goats") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                         >
                             <FaHorse className="mr-3" />
                             My Goats
@@ -180,8 +185,7 @@ function CustomerLayout() {
                     <li>
                         <button
                             onClick={handleSellGoatNavigation}
-                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/sell-goat") ? "bg-blue-700" : "hover:bg-blue-700"
-                                }`}
+                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/sell-goat") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                         >
                             <FaPlusCircle className="mr-3" />
                             Sell a Goat
@@ -190,8 +194,7 @@ function CustomerLayout() {
                     <li>
                         <button
                             onClick={() => navigate("/complete-profile")}
-                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/complete-profile") ? "bg-blue-700" : "hover:bg-blue-700"
-                                }`}
+                            className={`flex items-center w-full text-left py-3 px-4 rounded-lg transition-colors duration-200 text-lg ${isActive("/complete-profile") ? "bg-blue-700" : "hover:bg-blue-700"}`}
                         >
                             <FaUserCog className="mr-3" />
                             Profile Settings

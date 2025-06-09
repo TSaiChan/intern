@@ -1,94 +1,90 @@
-// File: controllers/ratings.js
 const db = require("../config/db");
 
+// Submit or update a rating
 exports.submitGoatRating = async (req, res) => {
+    const user_id = req.user?.userId;
     const { goat_id, rating, review } = req.body;
-    const user_id = req.user.id;
+
+    if (!user_id || !goat_id || !rating) {
+        return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
 
     try {
-        const existing = await db.query(
-            "SELECT * FROM ratings WHERE user_id = $1 AND goat_id = $2",
-            [user_id, goat_id]
-        );
+        // Check if user purchased this goat
+        db.query(
+            "SELECT * FROM purchases WHERE buyer_id = ? AND goat_id = ?",
+            [user_id, goat_id],
+            (err, purchaseCheck) => {
+                if (err) {
+                    console.error("DB error:", err);
+                    return res.status(500).json({ success: false, message: "DB error" });
+                }
 
-        if (existing.rows.length > 0) {
-            await db.query(
-                "UPDATE ratings SET rating = $1, review = $2, created_at = CURRENT_TIMESTAMP WHERE user_id = $3 AND goat_id = $4",
-                [rating, review, user_id, goat_id]
-            );
-        } else {
-            await db.query(
-                "INSERT INTO ratings (user_id, goat_id, rating, review) VALUES ($1, $2, $3, $4)",
-                [user_id, goat_id, rating, review]
-            );
+                if (purchaseCheck.length === 0) {
+                    return res.status(403).json({ success: false, message: "You haven't purchased this goat." });
+                }
+
+                // Check if rating already exists
+                db.query(
+                    "SELECT * FROM ratings WHERE user_id = ? AND goat_id = ?",
+                    [user_id, goat_id],
+                    (err, existing) => {
+                        if (err) {
+                            console.error("DB error:", err);
+                            return res.status(500).json({ success: false, message: "DB error" });
+                        }
+
+                        if (existing.length > 0) {
+                            // Update
+                            db.query(
+                                "UPDATE ratings SET rating = ?, review = ?, created_at = NOW() WHERE user_id = ? AND goat_id = ?",
+                                [rating, review, user_id, goat_id],
+                                (err) => {
+                                    if (err) {
+                                        console.error("DB error:", err);
+                                        return res.status(500).json({ success: false, message: "DB error" });
+                                    }
+                                    return res.json({ success: true, message: "Rating updated successfully" });
+                                }
+                            );
+                        } else {
+                            // Insert
+                            db.query(
+                                "INSERT INTO ratings (user_id, goat_id, rating, review, created_at) VALUES (?, ?, ?, ?, NOW())",
+                                [user_id, goat_id, rating, review],
+                                (err) => {
+                                    if (err) {
+                                        console.error("DB error:", err);
+                                        return res.status(500).json({ success: false, message: "DB error" });
+                                    }
+                                    return res.json({ success: true, message: "Rating submitted successfully" });
+                                }
+                            );
+                        }
+                    }
+                );
+            }
+        );
+    } catch (err) {
+        console.error("Unexpected error:", err);
+        return res.status(500).json({ success: false, message: "Server error" });
+    }
+};
+
+// Get all ratings for a goat
+exports.getGoatRatings = (req, res) => {
+    const goatId = req.params.id;
+
+    db.query(
+        "SELECT rating, review, created_at FROM ratings WHERE goat_id = ? ORDER BY created_at DESC",
+        [goatId],
+        (err, results) => {
+            if (err) {
+                console.error("DB error while fetching ratings:", err);
+                return res.status(500).json({ success: false, message: "DB error" });
+            }
+
+            res.json(results);
         }
-
-        res.json({ success: true, message: "Rating submitted" });
-    } catch (err) {
-        console.error("Rating Error:", err);
-        res.status(500).json({ success: false, message: "Internal server error" });
-    }
-};
-
-exports.getGoatRatings = async (req, res) => {
-    const goat_id = req.params.id;
-    try {
-        const ratings = await db.query(
-            `SELECT r.*, u.username FROM ratings r
-             JOIN users_login u ON r.user_id = u.user_id
-             WHERE r.goat_id = $1
-             ORDER BY r.created_at DESC`,
-            [goat_id]
-        );
-        res.json(ratings.rows);
-    } catch (err) {
-        console.error("Get Ratings Error:", err);
-        res.status(500).json({ success: false, message: "Failed to fetch ratings" });
-    }
-};
-
-exports.submitSellerReview = async (req, res) => {
-    const { seller_id, rating, review } = req.body;
-    const buyer_id = req.user.id;
-
-    try {
-        const existing = await db.query(
-            "SELECT * FROM seller_reviews WHERE buyer_id = $1 AND seller_id = $2",
-            [buyer_id, seller_id]
-        );
-
-        if (existing.rows.length > 0) {
-            await db.query(
-                "UPDATE seller_reviews SET rating = $1, review = $2, created_at = CURRENT_TIMESTAMP WHERE buyer_id = $3 AND seller_id = $4",
-                [rating, review, buyer_id, seller_id]
-            );
-        } else {
-            await db.query(
-                "INSERT INTO seller_reviews (buyer_id, seller_id, rating, review) VALUES ($1, $2, $3, $4)",
-                [buyer_id, seller_id, rating, review]
-            );
-        }
-
-        res.json({ success: true, message: "Review submitted" });
-    } catch (err) {
-        console.error("Seller Review Error:", err);
-        res.status(500).json({ success: false, message: "Internal server error" });
-    }
-};
-
-exports.getSellerReviews = async (req, res) => {
-    const seller_id = req.params.id;
-    try {
-        const reviews = await db.query(
-            `SELECT sr.*, u.username FROM seller_reviews sr
-             JOIN users_login u ON sr.buyer_id = u.user_id
-             WHERE sr.seller_id = $1
-             ORDER BY sr.created_at DESC`,
-            [seller_id]
-        );
-        res.json(reviews.rows);
-    } catch (err) {
-        console.error("Get Seller Reviews Error:", err);
-        res.status(500).json({ success: false, message: "Failed to fetch seller reviews" });
-    }
+    );
 };
