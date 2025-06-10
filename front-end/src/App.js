@@ -1,17 +1,18 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import '@fortawesome/fontawesome-free/css/all.min.css';
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import "@fortawesome/fontawesome-free/css/all.min.css";
 
-import Login from './components/Login';
-import Register from './components/Register';
-import ResetPassword from './components/ResetPassword'; // NEW IMPORT
-import CustomerDashboard from './components/CustomerDashboard';
-import AdminDashboard from './components/AdminDashboard';
-import CompleteProfile from './components/CustomerProfile';
-import SellGoat from './components/SellGoat';
-import MyGoats from './components/Mygoats';
-import BuyGoats from './components/BuyGoats';
-import CustomerLayout from './components/CustomerLayout';
+import Login from "./components/Login";
+import Register from "./components/Register";
+import ResetPassword from "./components/ResetPassword";
+import CustomerDashboard from "./components/CustomerDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import CompleteProfile from "./components/CustomerProfile";
+import SellGoat from "./components/SellGoat";
+import MyGoats from "./components/Mygoats";
+import BuyGoats from "./components/BuyGoats";
+import Wishlist from "./components/Wishlist";
+import MyPurchases from "./components/MyPurchases"; // ✅ import this
+import CustomerLayout from "./components/CustomerLayout";
 
 function App() {
   return (
@@ -19,7 +20,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/reset-password" element={<ResetPassword />} /> {/* NEW ROUTE */}
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/admin-dashboard" element={<AdminDashboard />} />
 
         {/* Customer Routes with Layout */}
@@ -29,6 +30,8 @@ function App() {
           <Route path="sell-goat" element={<SellGoat />} />
           <Route path="my-goats" element={<MyGoats />} />
           <Route path="buy-goats" element={<BuyGoats />} />
+          <Route path="wishlist" element={<Wishlist />} />
+          <Route path="my-purchases" element={<MyPurchases />} /> {/* ✅ new route */}
         </Route>
       </Routes>
     </Router>
